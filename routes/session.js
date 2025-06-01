@@ -1,30 +1,38 @@
 const express = require('express');
-const multer = require('multer');
-const path = require('path');
 const router = express.Router();
+const multer = require('multer');
+const { v2: cloudinary } = require('cloudinary');
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
 
-// Storage setup
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, 'uploads/');
+// Configure Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
+// Set up Cloudinary storage
+const storage = new CloudinaryStorage({
+  cloudinary,
+  params: {
+    folder: 'admin-sessions',
+    resource_type: 'video', // 👈 IMPORTANT for video uploads
+    allowed_formats: ['mp4', 'mov', 'avi', 'webm'],
+    public_id: (req, file) => `admin-session-${Date.now()}`
   },
-  filename: (req, file, cb) => {
-    const filename = `admin-session-${Date.now()}${path.extname(file.originalname)}`;
-    cb(null, filename);
-  }
 });
 
 const upload = multer({ storage });
 
 router.post('/log', upload.single('video'), (req, res) => {
-  if (!req.file) {
+  if (!req.file || !req.file.path) {
     return res.status(400).json({ msg: 'No video uploaded' });
   }
 
   res.status(200).json({
-    msg: 'Video uploaded successfully',
-    filename: req.file.filename,
-    path: `/uploads/${req.file.filename}`
+    msg: 'Video uploaded to Cloudinary successfully',
+    url: req.file.path,
+    public_id: req.file.filename
   });
 });
 

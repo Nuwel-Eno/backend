@@ -1,28 +1,40 @@
 const express = require('express');
-const cors = require('cors');
-const path = require('path');
-const mongoose = require('mongoose');
+const router = express.Router();
+const multer = require('multer');
+const { v2: cloudinary } = require('cloudinary');
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
 require('dotenv').config();
 
-const app = express();
-const PORT = process.env.PORT || 5000;
+// Cloudinary config
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
-// Connect to MongoDB
-mongoose.connect(process.env.MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-  .then(() => console.log("✅ MongoDB connected"))
-  .catch((err) => console.error("❌ MongoDB connection error:", err));
+// Storage config for videos
+const storage = new CloudinaryStorage({
+  cloudinary,
+  params: {
+    folder: 'admin_sessions',
+    resource_type: 'video',
+    format: async (req, file) => 'mp4',
+    public_id: (req, file) => `admin-session-${Date.now()}`
+  },
+});
 
-// Middleware
-app.use(cors());
-app.use(express.json());
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+const upload = multer({ storage });
 
-// API Routes
-app.use('/api/session', require('./routes/session'));
-app.use('/api/products', require('./routes/productRoutes'));
+router.post('/log', upload.single('video'), (req, res) => {
+  if (!req.file || !req.file.path) {
+    return res.status(400).json({ msg: 'Video upload failed' });
+  }
 
-// Start server
-app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+  res.status(200).json({
+    msg: 'Video uploaded successfully',
+    cloudinaryUrl: req.file.path,
+    public_id: req.file.filename
+  });
+});
+
+module.exports = router;
